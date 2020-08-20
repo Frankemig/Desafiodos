@@ -4,17 +4,24 @@ import android.content.DialogInterface
 import android.os.AsyncTask
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.widget.Toolbar
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import cl.desafiolatam.desafiodos.orm.TaskDao
+import cl.desafiolatam.desafiodos.orm.TaskDatabase
+import cl.desafiolatam.desafiodos.orm.TaskEntity
 import cl.desafiolatam.desafiodos.task.OnItemClickListener
 import cl.desafiolatam.desafiodos.task.TaskListAdapter
 import cl.desafiolatam.desafiodos.task.TaskUIDataHolder
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.add_task.view.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity(), OnItemClickListener {
     override fun onItemClick(taskItem: TaskUIDataHolder) {
@@ -30,6 +37,23 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
             .setPositiveButton("Editar") {
                     _: DialogInterface, _: Int ->
                 //generar código para editar/actualizar la tarea
+                if (taskText.text?.isNotEmpty()!!) {
+                    AsyncTask.execute{
+                        // el metodo update que agregue al TaskDao
+                        // que recibe el id y el texto a modificar
+                        instanceDB.updateTaskByID(taskItem.id.toInt() , taskText.text.toString())
+                        // despues hacemos el mismo proceso que antes de pasar la lista y que nos retorne un TaskUIDataHolder
+                        // que pasamos al metodo updateData del adapter, como en las demas funsiones en que trabajamos con la BD
+                        val newItems = createEntityListFromDatabase(instanceDB.getAllTask())
+                        runOnUiThread{
+                            adapter.updateData(newItems)
+
+                        }
+                    }
+                    // Esto era para ver los id del taskItem que es un TaskUIDataHolder,
+                    // que se pasan en el onBindViewHolder del adapter y se le agrego un Listener para saber cuando se hace click sobre el
+                    //Toast.makeText(this, taskItem.id.toString(), Toast.LENGTH_LONG).show()
+                }
             }
         dialogBuilder.create().show()
     }
@@ -37,6 +61,7 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
     private lateinit var list: RecyclerView
     private lateinit var adapter: TaskListAdapter
     // crear las variables para utilizar la base de datos
+    private lateinit var instanceDB: TaskDao
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,12 +70,14 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
         setSupportActionBar(toolbar)
         setUpViews()
         //inicializar lo necesario para usar la base de datos
+        instanceDB = TaskDatabase.getInstace(application).taskDao()
     }
 
     override fun onResume() {
         super.onResume()
         AsyncTask.execute {
-            val newItems = mutableListOf<TaskUIDataHolder>()
+            val newItems = createEntityListFromDatabase(instanceDB.getAllTask())
+            Log.d("Datos", "$newItems")
             runOnUiThread {
                 adapter.updateData(newItems)
             }
@@ -96,6 +123,15 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
                     dialog: DialogInterface, _: Int ->
                 if (taskText.text?.isNotEmpty()!!) {
                     //Completar para agregar una tarea a la base de datos
+                    AsyncTask.execute{
+                        instanceDB.insertTask(createEntity(taskText.text.toString()))
+                        val newItems = createEntityListFromDatabase(instanceDB.getAllTask())
+
+                        runOnUiThread{
+                            adapter.updateData(newItems)
+                            dialog.dismiss()
+                        }
+                    }
                 }
             }
         dialogBuilder.create().show()
@@ -110,17 +146,32 @@ class MainActivity : AppCompatActivity(), OnItemClickListener {
                     dialog: DialogInterface, _: Int -> dialog.dismiss()}
             .setPositiveButton("Aceptar") { dialog: DialogInterface, _: Int ->
                 //Código para eliminar las tareas de la base de datos
+                AsyncTask.execute{
+                    //var lista = instanceDB.getAllTask()
+                    instanceDB.deleteAllTask2()
+                }
             }
         dialog.show()
     }
-    private fun createEntity(text:String) {
+    private fun createEntity(text:String): TaskEntity {
         //completar este método para retornar un Entity
+        return TaskEntity(text)
     }
 
-    private fun createEntityListFromDatabase(/* párametro de entrada*/): MutableList<TaskUIDataHolder> {
+    private fun createEntityListFromDatabase(entities: List<TaskEntity>): MutableList<TaskUIDataHolder> {
         val dataList = mutableListOf<TaskUIDataHolder>()
         //completar método para crear una lista de datos compatibles con el adaptador, mire lo que
         //retorna el método. Este método debe recibir un parámetro también.
+        if (entities.isNotEmpty()){
+            for (entitie in entities){
+                val dataView = TaskUIDataHolder(
+                    entitie.uId!!,
+                    entitie.name
+                )
+                dataList.add(dataView)
+            }
+        }
         return dataList
     }
 }
+

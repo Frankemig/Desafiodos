@@ -1,11 +1,12 @@
 package cl.desafiolatam.desafiodos.orm
 
-import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity
-data class Task (@ColumnInfo(name="Long") var text:String) {
+data class TaskEntity(val name: String = "name") {
+
     @PrimaryKey(autoGenerate = true)
-    var id:Long? = null
+    var uId:Long? = null
+
 }
